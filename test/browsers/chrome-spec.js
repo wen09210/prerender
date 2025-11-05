@@ -1,4 +1,4 @@
-const chrome = require('../../lib/browsers/chrome'),
+const chrome = require('../lib/browsers/chrome'),
   sinon = require('sinon'),
   assert = require('assert');
 

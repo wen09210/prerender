@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 var prerender = require('./lib');
+var server = prerender({
+chromeLocation:
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+})
 
-var server = prerender();
 
 server.use(prerender.sendPrerenderHeader());
 server.use(prerender.browserForceRestart());
