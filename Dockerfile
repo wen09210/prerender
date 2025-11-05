@@ -53,7 +53,11 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
-COPY package*.json ./
+# 複製 zip 檔進容器
+COPY prerender.zip ./
+
+# 解壓縮 zip 檔
+RUN unzip prerender.zip
 
 # 安裝 npm 依賴
 RUN npm install

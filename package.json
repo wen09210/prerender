@@ -24,7 +24,8 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "./node_modules/.bin/mocha --recursive"
+    "test": "./node_modules/.bin/mocha --recursive",
+    "build": "zip -r prerender.zip . -x 'node_modules/*' '.git/*' '.DS_Store' '*.log'"
   },
   "engines": {
     "node": ">=10"
