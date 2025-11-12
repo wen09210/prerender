@@ -1,8 +1,21 @@
 #!/usr/bin/env node
 var prerender = require('./lib');
 
+// Determine Chrome/Chromium location. Prefer puppeteer's downloaded binary if available,
+// otherwise fall back to environment variable or /usr/bin/chromium.
+let chromeLocation = process.env.CHROME_LOCATION || '/usr/bin/chromium';
+try {
+    const puppeteer = require('puppeteer');
+    const ppPath = puppeteer.executablePath();
+    if (ppPath) {
+        chromeLocation = ppPath;
+    }
+} catch (e) {
+    // puppeteer not installed or executable not found; fall back to default
+}
+
 var server = prerender({
-    chromeLocation: '/usr/bin/chromium',
+    chromeLocation: chromeLocation,
     chromeFlags: [
         '--no-sandbox',
         '--headless',
