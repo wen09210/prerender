@@ -23,13 +23,9 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
 
 WORKDIR /app
 
-# 複製 zip 檔進容器
-COPY prerender.zip ./
+# Copy package
+COPY package*.json ./
 
-# 解壓縮 zip 檔
-RUN unzip prerender.zip
-
-# 安裝 npm 依賴
 RUN npm install
 
 # 若專案沒有 puppeteer，顯式安裝 puppeteer 以便在 build 時下載 Chromium
@@ -50,4 +46,4 @@ COPY . .
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["dumb-init", "--", "node", "server.js"]
