@@ -37,21 +37,27 @@ RUN if [ -n "${NEXUS_URL}" ]; then \
 
 COPY . .
 
-RUN CHROME_PATH=$(which chromium-browser || which chromium) && \
-    echo "系統安裝的 Chromium 位於: $CHROME_PATH" && \
-    ln -sf "$CHROME_PATH" /usr/local/bin/chrome && \
+RUN echo "=== 列出 chromium 安裝目錄 ===" && \
+    ls -lah /usr/lib64/chromium-browser/ 2>/dev/null || true && \
+    ls -lah /usr/lib/chromium-browser/ 2>/dev/null || true && \
+    echo "=== 尋找最大的 Chromium 相關 binary ===" && \
+    # 找大於 10MB 的 chromium 相關 ELF binary（真正的可執行檔）
+    CHROME_REAL=$(find /usr/lib64 /usr/lib -maxdepth 3 -type f \( -name "chromium-browser" -o -name "chromium" \) -size +10M 2>/dev/null | head -1) && \
+    if [ -z "$CHROME_REAL" ]; then \
+        echo "找不到大型 binary，列出所有 chromium 相關檔案：" && \
+        find /usr/lib64 /usr/lib -name "chromium*" -type f 2>/dev/null | xargs ls -lah 2>/dev/null && \
+        # 使用 .sh 的 parent dir 找真正 binary
+        CHROME_REAL=$(find /usr/lib64/chromium-browser -type f -size +1M 2>/dev/null | head -1); \
+    fi && \
+    echo "真正的 Chromium binary: $CHROME_REAL" && \
+    ln -sf "$CHROME_REAL" /usr/local/bin/chrome && \
     chmod +x /usr/local/bin/chrome && \
-    echo "=== 驗證 Chrome 安裝 ===" && \
-    /usr/local/bin/chrome --version
+    echo "=== 驗證 ===" && \
+    ls -lah /usr/local/bin/chrome && \
+    ls -lah "$CHROME_REAL"
 
-RUN mkdir -p /app && \
-    echo '#!/bin/bash' > /app/start.sh && \
-    echo 'export CHROME_BIN=/usr/local/bin/chrome' >> /app/start.sh && \
-    echo 'export CHROME_PATH=/usr/local/bin/chrome' >> /app/start.sh && \
-    echo 'export PORT=${PORT:-8080}' >> /app/start.sh && \
-    echo 'echo "Starting Prerender on port ${PORT}..."' >> /app/start.sh && \
-    echo 'exec node server.js' >> /app/start.sh && \
-    chmod +x /app/start.sh
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
 USER $USER_UID
 
