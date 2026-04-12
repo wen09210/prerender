@@ -1,49 +1,95 @@
-FROM registry.access.redhat.com/ubi9/nodejs-20
+FROM registry.access.redhat.com/ubi8/nodejs-20:1-73.1742991506
 
-# 使用 UBI + microdnf 安裝 RPM 套件（假設可從內建 repo 或 EPEL 取得）
-USER 0
-RUN set -eux; \
-    PKGS="ca-certificates dejavu-sans-fonts dejavu-serif-fonts alsa-lib at-spi2-atk atk glibc cairo cups-libs dbus-libs expat fontconfig mesa-libgbm libgcc glib2 gtk3 nspr nss nss-util nss-softokn libxkbcommon pango libstdc++ libX11 libxcb libXcomposite libXcursor libXdamage libXext libXfixes libXi libXrandr libXrender libXScrnSaver libXtst libX11-xcb wget unzip"; \
-    if command -v microdnf >/dev/null 2>&1; then \
-    microdnf update -y; microdnf install -y epel-release || true; microdnf install -y $PKGS; microdnf clean all; \
-    elif command -v dnf >/dev/null 2>&1; then \
-    dnf -y makecache; dnf install -y epel-release || true; dnf install -y $PKGS; dnf clean all; \
-    elif command -v yum >/dev/null 2>&1; then \
-    yum -y makecache; yum install -y epel-release || true; yum install -y $PKGS; yum clean all; \
-    else \
-    echo "No supported package manager found (microdnf/dnf/yum)."; exit 1; \
-    fi
+USER root
+ENV USER=default
+ENV USER_UID=1001
+ENV USER_GID=100
 
-# 增加 symbolic link（若 chromium 安裝在不同路徑，請調整）
-RUN [ -x "/usr/bin/chromium" ] && ln -sf /usr/bin/chromium /usr/bin/google-chrome || true && \
-    [ -x "/usr/bin/chromium" ] && ln -sf /usr/bin/chromium /usr/bin/chromium-browser || true
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
-# 允許 Puppeteer 在 npm install 階段下載 Chromium（若你想改回使用系統 chromium，請改為 true 並提供可執行路徑）
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
+ARG RPM_PACKAGES
+ARG NEXUS_URL
 
-WORKDIR /app
 
-# Copy package
-COPY package*.json ./
 
-RUN npm install
 
-# 若專案沒有 puppeteer，顯式安裝 puppeteer 以便在 build 時下載 Chromium
-RUN npm install puppeteer --unsafe-perm=true --allow-root || true
 
-# 將 Puppeteer 下載的 Chromium binary 連結到 /usr/bin/chromium，讓程式可用固定路徑啟動
-RUN set -eux; \
-    if node -e "try{console.log(require('puppeteer').executablePath());}catch(e){process.exit(2)}" >/tmp/puppeteer_path 2>/tmp/puppeteer_err; then \
-    CHROME_PATH=$(cat /tmp/puppeteer_path); \
-    echo "Found puppeteer chromium at: $CHROME_PATH"; \
-    # Do not attempt to symlink into /usr/bin (may not be writable in base image).
-    # server.js will prefer puppeteer's executablePath at runtime, so no symlink is required.
-    else \
-    echo "puppeteer executablePath not found:"; cat /tmp/puppeteer_err || true; \
-    fi
+RUN if [ -n "${RPM_PACKAGES}" ]; then \
+            RHEL_VERSION=$(rpm -E %{rhel})  && \
+            echo -e "[nexus-cdn]\nname=Nexus CDN\nbaseurl=https://${NEXUS_URL}/repository/redhat-ubi${RHEL_VERSION}-proxy/\nenabled=1\ngpgcheck=0\nsslverify=0\n\n[nexus-rocky]\nname=Nexus Rocky\nbaseurl=https://${NEXUS_URL}/repository/rocky-ubi${RHEL_VERSION}-proxy/\nenabled=1\ngpgcheck=0\nsslverify=0\n\n[nexus-epel]\nname=Nexus EPEL\nbaseurl=https://${NEXUS_URL}/repository/epel-ubi${RHEL_VERSION}-proxy/\nenabled=1\ngpgcheck=0\nsslverify=0\n\n" > /etc/yum.repos.d/nexus.repo  && \
+            echo -e "openssl_conf = default_conf\n[default_conf]\nssl_conf = ssl_sect\n[ssl_sect]\nsystem_default = system_default_sect\n[system_default_sect]\nCipherString = DEFAULT:@SECLEVEL=1" > /etc/ssl/nexus.openssl.cnf && \
+            find /etc/yum.repos.d -type f ! -name 'nexus.repo' -delete && \
+            export OPENSSL_CONF=/etc/ssl/nexus.openssl.cnf && \
+            yum clean all &&  yum --setopt=timeout=300 update -y && \
+            yum install -y ${RPM_PACKAGES} && \
+            yum clean all && rm -rf /var/cache/yum/* ; \
+        fi
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
-COPY . .
+COPY dist.zip ./
+RUN unzip -o dist.zip 2>/dev/null || unzip dist.zip || echo "unzip completed"
+# 安裝所有依賴
+RUN npm config set strict-ssl false && npm install --reg https://${NEXUS_URL}/repository/npm-all/ puppeteer --unsafe-perm=true --allow-root
+# 檢查並設定 Chrome 路徑
+RUN CHROME_PATH=$(node -e "console.log(require('puppeteer').executablePath())") && \
+        echo "Puppeteer Chrome 位於: $CHROME_PATH" && \
+        ln -sf "$CHROME_PATH" /usr/local/bin/chrome && \
+        chmod +x /usr/local/bin/chrome && \
+        echo "=== 驗證 Chrome 安裝 ===" && \
+        ls -la "$CHROME_PATH" && \
+        ls -la /usr/local/bin/chrome && \
+        /usr/local/bin/chrome --version || echo "Chrome 版本檢查失敗"
+# 確保 Chrome 有執行權限
+RUN CHROME_EXECUTABLE=$(node -e "console.log(require('puppeteer').executablePath())") && \
+        chmod +x $CHROME_EXECUTABLE && \
+        ls -la $CHROME_EXECUTABLE && \
+        echo "CHROME_BIN=$CHROME_EXECUTABLE" >> /etc/environment && \
+        echo "CHROME_PATH=$CHROME_EXECUTABLE" >> /etc/environment
 
-EXPOSE 3000
+# 測試 Chrome 是否可以啟動
+RUN CHROME_EXECUTABLE=$(node -e "console.log(require('puppeteer').executablePath())") && \
+        $CHROME_EXECUTABLE --version || echo "Chrome 啟動測試失敗"
 
-CMD ["dumb-init", "--", "node", "server.js"]
+
+
+RUN mkdir -p /app && \
+        echo '#!/bin/bash' >> /app/start.sh && \
+        echo '# 載入環境變數' >> /app/start.sh && \
+        echo 'set -a' >> /app/start.sh && \
+        echo 'source /etc/environment 2>/dev/null || true' >> /app/start.sh && \
+        echo 'set +a' >> /app/start.sh && \
+        echo '' >> /app/start.sh && \
+        echo '# --- MTU 診斷與嘗試修正區塊 ---' >> /app/start.sh && \
+        echo 'echo "目前用戶 ID: $(id -u)"' >> /app/start.sh && \
+        echo '# 嘗試設定 MTU (如果是 root 或有 cap 權限)' >> /app/start.sh && \
+        echo 'ip link set eth0 mtu 1400 2>/dev/null' >> /app/start.sh && \
+        echo 'if [ $? -eq 0 ]; then' >> /app/start.sh && \
+        echo '    echo ":white_check_mark: 成功將 MTU 設定為 1400"' >> /app/start.sh && \
+        echo 'else' >> /app/start.sh && \
+        echo '    echo ":warning: 無法設定 MTU (可能是非 Root 用戶)，將依賴外部網路設定"' >> /app/start.sh && \
+        echo 'fi' >> /app/start.sh && \
+        echo '' >> /app/start.sh && \
+        echo '# 動態設定 Chrome 路徑' >> /app/start.sh && \
+        echo 'CHROME_EXECUTABLE=$(node -e "console.log(require(\"puppeteer\").executablePath())")' >> /app/start.sh && \
+        echo 'export CHROME_BIN=$CHROME_EXECUTABLE' >> /app/start.sh && \
+        echo 'export CHROME_PATH=$CHROME_EXECUTABLE' >> /app/start.sh && \
+        echo '# 設定 Prerender 監聽端口（公司規定）' >> /app/start.sh && \
+        echo 'export PORT=8080' >> /app/start.sh && \
+        echo 'echo "=== Chrome 環境變數 ==="' >> /app/start.sh && \
+        echo 'echo "CHROME_BIN=$CHROME_BIN"' >> /app/start.sh && \
+        echo 'echo "CHROME_PATH=$CHROME_PATH"' >> /app/start.sh && \
+        echo 'echo "PORT=$PORT"' >> /app/start.sh && \
+        echo 'echo "Starting Prerender with Chrome at: $CHROME_BIN"' >> /app/start.sh && \
+        echo 'echo "Prerender will listen on port: $PORT"' >> /app/start.sh && \
+        echo '' >> /app/start.sh && \
+        # echo 'echo "=== 測試網路連線 GOOGLE ==="' >> /app/start.sh && \
+        # echo 'curl -s --connect-timeout 5 https://www.google.com && echo "Google 網路測試完成" || echo "Google 連線失敗"' >> /app/start.sh && \
+        # echo '' >> /app/start.sh && \
+        echo '' >> /app/start.sh && \
+        echo 'node server.js' >> /app/start.sh
+RUN chmod +x /app/start.sh
+
+USER $USER_UID
+
+EXPOSE 8080
+CMD ["/app/start.sh"]
