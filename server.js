@@ -43,8 +43,10 @@ console.log('\n=== Prerender Configuration ===');
 const prerenderConfig = {
     chromeLocation: chromeLocation,
     chromeFlags: [
+        // 若有設定容器網路代理
+        ...(process.env.PROXY_SERVER ? [`--proxy-server=${process.env.PROXY_SERVER}`] : []),
         // 基礎必要參數
-        '--headless=new',                        // 新版無頭模式（更穩定）
+        '--headless=new',                        // 新版無頭模式（更穩定）
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--user-data-dir=/tmp/prerender-chrome-profile',
@@ -114,8 +116,8 @@ const server = prerender(prerenderConfig);
 // plugin
 console.log(':package: Loading plugins...');
 
-// 健康檢查
-server.use(require('./plugins/health-check'));
+// 健康檢查 (因本機缺少 ./plugins/health-check 檔案，暫時註解避免報錯)
+// server.use(require('./plugins/health-check'));
 
 server.use(prerender.sendPrerenderHeader());
 server.use(prerender.browserForceRestart());
