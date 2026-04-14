@@ -116,7 +116,7 @@ const server = prerender(prerenderConfig);
 console.log(':package: Loading plugins...');
 
 // 健康檢查 (因本機缺少 ./plugins/health-check 檔案，暫時註解避免報錯)
-// server.use(require('./plugins/health-check'));
+server.use(require('./plugins/health-check'));
 
 server.use(prerender.sendPrerenderHeader());
 server.use(prerender.browserForceRestart());

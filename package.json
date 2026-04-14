@@ -27,7 +27,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "./node_modules/.bin/mocha --recursive",
-    "build": "echo 'Build complete. Deploy via Docker image.'"
+    "build": "rm -rf dist && mkdir -p dist && cp -r server.js package.json package-lock.json start.sh lib plugins template dist/"
   },
   "engines": {
     "node": ">=10"
