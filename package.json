@@ -20,6 +20,7 @@
     "valid-url": "^1.0.9"
   },
   "devDependencies": {
+    "archiver": "^5.3.2",
     "mocha": "^8.4.0",
     "prettier": "3.3.2",
     "sinon": "^11.1.1"
@@ -27,7 +28,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "./node_modules/.bin/mocha --recursive",
-    "build": "rm -rf dist && mkdir -p dist && cp -r server.js package.json package-lock.json start.sh lib plugins template dist/"
+    "build": "node build.js"
   },
   "engines": {
     "node": ">=10"
