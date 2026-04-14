@@ -30,31 +30,14 @@ WORKDIR /opt/app-root/src
 
 COPY package*.json ./
 RUN if [ -n "${NEXUS_URL}" ]; then \
-        npm config set strict-ssl false && npm install --reg https://${NEXUS_URL}/repository/npm-all/ --unsafe-perm=true --allow-root; \
+        npm config set strict-ssl false && npm install --reg https://${NEXUS_URL}/repository/npm-all/; \
     else \
-        npm install --unsafe-perm=true --allow-root; \
+        npm install; \
     fi
 
 COPY . .
 
-RUN echo "=== 列出 chromium 安裝目錄 ===" && \
-    ls -lah /usr/lib64/chromium-browser/ 2>/dev/null || true && \
-    ls -lah /usr/lib/chromium-browser/ 2>/dev/null || true && \
-    echo "=== 尋找最大的 Chromium 相關 binary ===" && \
-    # 找大於 10MB 的 chromium 相關 ELF binary（真正的可執行檔）
-    CHROME_REAL=$(find /usr/lib64 /usr/lib -maxdepth 3 -type f \( -name "chromium-browser" -o -name "chromium" \) -size +10M 2>/dev/null | head -1) && \
-    if [ -z "$CHROME_REAL" ]; then \
-        echo "找不到大型 binary，列出所有 chromium 相關檔案：" && \
-        find /usr/lib64 /usr/lib -name "chromium*" -type f 2>/dev/null | xargs ls -lah 2>/dev/null && \
-        # 使用 .sh 的 parent dir 找真正 binary
-        CHROME_REAL=$(find /usr/lib64/chromium-browser -type f -size +1M 2>/dev/null | head -1); \
-    fi && \
-    echo "真正的 Chromium binary: $CHROME_REAL" && \
-    ln -sf "$CHROME_REAL" /usr/local/bin/chrome && \
-    chmod +x /usr/local/bin/chrome && \
-    echo "=== 驗證 ===" && \
-    ls -lah /usr/local/bin/chrome && \
-    ls -lah "$CHROME_REAL"
+RUN ln -sf /usr/lib64/chromium-browser/chromium-browser /usr/local/bin/chrome
 
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh

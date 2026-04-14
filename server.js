@@ -1,16 +1,15 @@
 #!/usr/bin/env node
-const puppeteer = require('puppeteer');
 const prerender = require('./lib');
 const path = require('path');
 // env 可有可無，但路徑要用 __dirname 才能在 Docker 裡正常讀
 require('dotenv').config({
     path: path.join(__dirname, 'env/.env.development')
 });
-// 不寫死路徑 → 優先使用環境變數或系統 Chromium
+// 優先使用環境變數，最後 fallback 到已知的系統 Chromium 路徑
 const chromeLocation = process.env.PUPPETEER_EXECUTABLE_PATH ||
     process.env.CHROME_BIN ||
     process.env.CHROME_PATH ||
-    puppeteer.executablePath();
+    '/usr/local/bin/chrome';
 console.log("=== Puppeteer Executable Path ===");
 console.log("Chrome Path:", chromeLocation);
 console.log("=================================");
@@ -18,8 +17,8 @@ console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('CHROME_PATH:', process.env.CHROME_PATH);
 console.log('CHROME_BIN:', process.env.CHROME_BIN);
 
-process.env.CACHE_TTL = 3600; // 設定為 1 小時 (3600 秒)
-process.env.CACHE_MAXSIZE = 100; // 最大快取 100 個頁面
+process.env.CACHE_TTL = process.env.CACHE_TTL || 3600;
+process.env.CACHE_MAXSIZE = process.env.CACHE_MAXSIZE || 100;
 
 
 
