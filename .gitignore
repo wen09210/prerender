@@ -5,3 +5,11 @@ node_modules/
 .ebextensions/
 .idea/
 .vscode/
+google-cloud-sdk/
+.claude/
+env/
+*.env
+*.env.*
+*.key
+*.pem
+try.js

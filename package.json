@@ -16,7 +16,6 @@
     "express": "^4.17.1",
     "he": "^1.2.0",
     "prerender-memory-cache": "^1.0.2",
-    "puppeteer": "^21.4.1",
     "uuid": "^8.3.2",
     "valid-url": "^1.0.9"
   },
