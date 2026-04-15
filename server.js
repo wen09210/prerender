@@ -45,7 +45,7 @@ const prerenderConfig = {
         // 若有設定容器網路代理
         ...(process.env.PROXY_SERVER ? [`--proxy-server=${process.env.PROXY_SERVER}`] : []),
         // 基礎必要參數
-        '--headless=new',                        // 新版無頭模式（更穩定）
+        '--headless',                            // 無頭模式（向後相容所有版本）
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--user-data-dir=/tmp/prerender-chrome-profile',
