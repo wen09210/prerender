@@ -37,9 +37,34 @@ RUN if [ -n "${NEXUS_URL}" ]; then \
         npm install; \
     fi
 
+# 安裝 puppeteer（取得 executablePath API，Chrome 由 RPM 提供）
+RUN if [ -n "${NEXUS_URL}" ]; then \
+        npm config set strict-ssl false && npm install --reg https://${NEXUS_URL}/repository/npm-all/ puppeteer --unsafe-perm=true --allow-root; \
+    else \
+        npm install puppeteer --unsafe-perm=true --allow-root; \
+    fi
+
 COPY . .
 
-RUN ln -sf /usr/lib64/chromium-browser/chromium-browser /usr/local/bin/chrome
+# 設定 Chrome 路徑：優先使用 puppeteer executablePath，fallback 到 yum 安裝的 chromium
+RUN CHROME_PATH=$(node -e "console.log(require('puppeteer').executablePath())") && \
+    echo "Puppeteer Chrome 位於: $CHROME_PATH" && \
+    if [ -f "$CHROME_PATH" ]; then \
+        echo "使用 Puppeteer 內建 Chrome" && \
+        ln -sf "$CHROME_PATH" /usr/local/bin/chrome && \
+        chmod +x "$CHROME_PATH"; \
+    elif [ -f "/usr/lib64/chromium-browser/chromium-browser" ]; then \
+        echo "使用 yum 安裝的 chromium" && \
+        ln -sf /usr/lib64/chromium-browser/chromium-browser /usr/local/bin/chrome; \
+    elif [ -f "/usr/bin/chromium-browser" ]; then \
+        echo "使用 /usr/bin/chromium-browser" && \
+        ln -sf /usr/bin/chromium-browser /usr/local/bin/chrome; \
+    else \
+        echo "警告: 找不到 Chrome 執行檔，請確認 RPM_PACKAGES 包含 chromium"; \
+    fi && \
+    echo "=== 驗證 Chrome 安裝 ===" && \
+    ls -la /usr/local/bin/chrome && \
+    /usr/local/bin/chrome --version || echo "Chrome 版本檢查失敗（容器啟動時可能正常）"
 
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
